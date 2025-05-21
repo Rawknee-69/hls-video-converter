@@ -1,0 +1,13 @@
+{
+  "lockfileVersion": 1,
+  "workspaces": {
+    "": {
+      "dependencies": {
+        "next-app": "^0.0.0",
+      },
+    },
+  },
+  "packages": {
+    "next-app": ["next-app@0.0.0", "", {}, "sha512-vBpHtHZ8mzS+Ul90YVXYBdbBU3v5Ej//Vap8MVCzVBIreHQmaeT60kvqwJVZQ+reFSmU18fAhvC0xMkafWn//Q=="],
+  }
+}
