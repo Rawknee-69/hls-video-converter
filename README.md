@@ -2,6 +2,13 @@
 
 A powerful video transcoder that converts your videos to HLS format with adaptive bitrate streaming. Works on your local machine, bare metal servers, or in AWS. No need for complex cloud setups - just run it anywhere!
 
+
+# The Flow Diagram Of its Working 
+
+https://github.com/user-attachments/assets/a23c80b6-e0d7-4336-9b4c-bfce3c2137ac
+
+
+
 ## What it does
 
 - Converts any video to HLS format with adaptive streaming
