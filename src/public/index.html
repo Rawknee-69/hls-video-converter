@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HLS Video Converter</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .drop-zone {
+            border: 2px dashed #4a5568;
+            transition: all 0.3s ease;
+        }
+        .drop-zone.dragover {
+            border-color: #4299e1;
+            background-color: #ebf8ff;
+        }
+        .progress-bar {
+            transition: width 0.3s ease;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <header class="text-center mb-12">
+            <h1 class="text-4xl font-bold text-gray-800 mb-2">HLS Video Converter</h1>
+            <p class="text-gray-600">Convert your videos to HLS format with adaptive bitrate streaming</p>
+        </header>
+
+        <div class="max-w-2xl mx-auto bg-white rounded-lg shadow-lg p-6">
+            <div id="upload-zone" class="drop-zone rounded-lg p-8 text-center cursor-pointer mb-6">
+                <div class="space-y-4">
+                    <i class="fas fa-cloud-upload-alt text-4xl text-gray-400"></i>
+                    <p class="text-gray-600">Drag and drop your video here or click to browse</p>
+                    <input type="file" id="file-input" class="hidden" accept="video/*">
+                    <button class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition">
+                        Select Video
+                    </button>
+                </div>
+            </div>
+
+            <div id="upload-progress" class="hidden">
+                <div class="mb-2 flex justify-between text-sm text-gray-600">
+                    <span id="file-name">filename.mp4</span>
+                    <span id="progress-text">0%</span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-2">
+                    <div id="progress-bar" class="progress-bar bg-blue-500 h-2 rounded-full" style="width: 0%"></div>
+                </div>
+            </div>
+
+            <div id="conversion-status" class="hidden mt-6">
+                <div class="flex items-center space-x-2 text-gray-600">
+                    <i class="fas fa-spinner fa-spin"></i>
+                    <span>Converting video...</span>
+                </div>
+            </div>
+
+            <div id="conversion-complete" class="hidden mt-6">
+                <div class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded">
+                    <div class="flex items-center space-x-2">
+                        <i class="fas fa-check-circle"></i>
+                        <span>Conversion complete!</span>
+                    </div>
+                    <div class="mt-2">
+                        <a id="download-link" href="#" class="text-green-700 underline">Download HLS files</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="max-w-2xl mx-auto mt-8">
+            <h2 class="text-2xl font-semibold text-gray-800 mb-4">Recent Conversions</h2>
+            <div id="conversion-list" class="space-y-4">
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const uploadZone = document.getElementById('upload-zone');
+        const fileInput = document.getElementById('file-input');
+        const uploadProgress = document.getElementById('upload-progress');
+        const progressBar = document.getElementById('progress-bar');
+        const progressText = document.getElementById('progress-text');
+        const fileName = document.getElementById('file-name');
+        const conversionStatus = document.getElementById('conversion-status');
+        const conversionComplete = document.getElementById('conversion-complete');
+        const downloadLink = document.getElementById('download-link');
+
+
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            uploadZone.addEventListener(eventName, preventDefaults, false);
+        });
+
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            uploadZone.addEventListener(eventName, highlight, false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            uploadZone.addEventListener(eventName, unhighlight, false);
+        });
+
+        function highlight(e) {
+            uploadZone.classList.add('dragover');
+        }
+
+        function unhighlight(e) {
+            uploadZone.classList.remove('dragover');
+        }
+
+        uploadZone.addEventListener('drop', handleDrop, false);
+        uploadZone.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', handleFileSelect);
+
+        function handleDrop(e) {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+            handleFiles(files);
+        }
+
+        function handleFileSelect(e) {
+            const files = e.target.files;
+            handleFiles(files);
+        }
+
+        function handleFiles(files) {
+            if (files.length > 0) {
+                const file = files[0];
+                if (file.type.startsWith('video/')) {
+                    uploadFile(file);
+                } else {
+                    alert('Please select a video file');
+                }
+            }
+        }
+
+        function uploadFile(file) {
+            const formData = new FormData();
+            formData.append('video', file);
+
+            fileName.textContent = file.name;
+            uploadProgress.classList.remove('hidden');
+            conversionStatus.classList.remove('hidden');
+            conversionComplete.classList.add('hidden');
+
+            fetch('/api/upload', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.jobId) {
+                    pollConversionStatus(data.jobId);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Upload failed. Please try again.');
+            });
+        }
+
+        function pollConversionStatus(jobId) {
+            const pollInterval = setInterval(() => {
+                fetch(`/api/status/${jobId}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status === 'completed') {
+                            clearInterval(pollInterval);
+                            conversionStatus.classList.add('hidden');
+                            conversionComplete.classList.remove('hidden');
+                            downloadLink.href = `/api/download/${jobId}`;
+                            updateConversionList();
+                        } else if (data.status === 'failed') {
+                            clearInterval(pollInterval);
+                            alert('Conversion failed. Please try again.');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        clearInterval(pollInterval);
+                    });
+            }, 2000);
+        }
+
+        function updateConversionList() {
+            fetch('/api/conversions')
+                .then(response => response.json())
+                .then(data => {
+                    const conversionList = document.getElementById('conversion-list');
+                    conversionList.innerHTML = data.map(conversion => `
+                        <div class="bg-white rounded-lg shadow p-4">
+                            <div class="flex justify-between items-center">
+                                <div>
+                                    <h3 class="font-semibold">${conversion.originalName}</h3>
+                                    <p class="text-sm text-gray-600">Converted ${new Date(conversion.completedAt).toLocaleString()}</p>
+                                </div>
+                                <a href="/api/download/${conversion.jobId}" class="text-blue-500 hover:text-blue-600">
+                                    <i class="fas fa-download"></i>
+                                </a>
+                            </div>
+                        </div>
+                    `).join('');
+                })
+                .catch(error => console.error('Error:', error));
+        }
+
+        updateConversionList();
+    </script>
+</body>
+</html> 
